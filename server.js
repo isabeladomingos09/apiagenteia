@@ -30,7 +30,7 @@ app.post('/api/chat', async (req, res) => {
 
         // LOG DE DIAGNÓSTICO 2: Testando o modelo mais básico e estável
 // Use exatamente este nome: gemini-1.5-flash
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });    
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });    
     const promptFinal = `Você é um robô sarcástico. Responda: ${pergunta}`;
         
         const result = await model.generateContent(promptFinal);
