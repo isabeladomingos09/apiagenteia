@@ -1,42 +1,84 @@
-require('dotenv').config();
+require('dotenv').config({ path: 'config.env' });
 const express = require('express');
 const cors = require('cors');
+const mongoose = require('mongoose');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const multer = require('multer');
 
 const app = express();
 app.use(express.json());
-app.use(cors()); // Importante para o Front-end acessar o Back-end
+app.use(cors());
 
-const apiKey = process.env.GEMINI_API_KEY;
-const genAI = new GoogleGenerativeAI(apiKey);
-
-app.get('/api/status', (req, res) => {
-    res.json({ status: "Online", ambiente: "Nuvem" });
+// --- 1. CONFIGURAÇÃO MULTER (Memória RAM) ---
+// Recebe a imagem e guarda temporariamente na memória do servidor
+const storage = multer.memoryStorage();
+const upload = multer({ 
+    storage: storage,
+    limits: { fileSize: 10 * 1024 * 1024 } // Limite de 10MB
 });
 
-app.post('/api/chat', async (req, res) => {
+// --- 2. CONEXÃO MONGODB ---
+mongoose.connect(process.env.MONGO_URI)
+    .then(() => console.log("✅ MongoDB Conectado!"))
+    .catch(err => console.error("❌ Erro MongoDB:", err));
+
+// --- 3. MODELOS ---
+const Jogador = mongoose.model('Jogador', new mongoose.Schema({
+    nome: { type: String, unique: true, required: true },
+    xp: { type: Number, default: 0 }
+}));
+
+// --- 4. CONFIGURAÇÃO GEMINI ---
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+// --- 5. ROTA DE VISÃO (DIRETO PARA O GEMINI) ---
+app.post('/api/chat/vision', upload.single('imagem'), async (req, res) => {
+    console.log("📸 Recebendo imagem para análise...");
     try {
-        const { pergunta } = req.body;
-        if (!pergunta) return res.status(400).json({ erro: "Envie uma pergunta." });
+        const { nickname, pergunta } = req.body;
+        const arquivo = req.file;
 
-        // MODELO CORRIGIDO: gemini-1.5-flash é o padrão estável e gratuito
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });    
-        const promptFinal = `Você é um robô sarcástico. Responda: ${pergunta}`;
+        if (!arquivo) return res.status(400).json({ erro: "Envie uma imagem!" });
+
+        // Transformamos o buffer da imagem em uma string Base64 que o Gemini entende
+        const imagePart = {
+            inlineData: {
+                data: arquivo.buffer.toString("base64"),
+                mimeType: arquivo.mimetype
+            }
+        };
+
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const promptIA = `Você é o Guardião do Conhecimento. O jogador ${nickname} enviou uma imagem. Analise-a e responda: ${pergunta}`;
         
-        const result = await model.generateContent(promptFinal);
-        const response = await result.response;
-        const text = response.text();
+        const result = await model.generateContent([promptIA, imagePart]);
+        const respostaIA = result.response.text();
 
-        return res.status(200).json({ resposta: text });
+        console.log("✅ IA analisou a imagem com sucesso!");
 
-    } catch (erro) {
-        console.error("Erro:", erro.message);
-        return res.status(500).json({ erro: "Erro na API do Google", detalhe: erro.message });
+        res.json({ 
+            resposta: respostaIA,
+            // Como não usamos Cloudinary, mandamos a própria imagem de volta em base64 para o front mostrar
+            imageUrl: `data:${arquivo.mimetype};base64,${arquivo.buffer.toString("base64")}`
+        });
+
+    } catch (error) {
+        console.error("Erro na visão:", error);
+        res.status(500).json({ erro: "A IA não conseguiu ver a imagem." });
     }
 });
 
-// AJUSTE DA PORTA: Render define a porta automaticamente
-const PORTA = process.env.PORT || 3000; 
-app.listen(PORTA, () => {
-    console.log(`🚀 Servidor rodando na porta ${PORTA}`);
+// --- ROTA DE CHAT (TEXTO) ---
+app.post('/api/chat', async (req, res) => {
+    try {
+        const { pergunta, nickname } = req.body;
+        const modelTexto = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const result = await modelTexto.generateContent(`Jogador ${nickname}: ${pergunta}`);
+        res.json({ resposta: result.response.text() });
+    } catch (error) {
+        res.status(500).json({ erro: "Erro no chat." });
+    }
 });
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`🚀 Servidor Multimodal Online em http://localhost:${PORT}`));

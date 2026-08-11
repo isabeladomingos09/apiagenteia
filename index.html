@@ -1,96 +1,116 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Aeroporto Inteligente - Operação Caixa-Preta</title>
+    <title>Guardião Multimodal</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
-        .painel { border: 2px solid #333; padding: 15px; border-radius: 8px; width: 300px; }
-        button { margin: 5px; cursor: pointer; }
+        body { font-family: 'Segoe UI', sans-serif; background: #1a1a2e; color: white; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .game-card { background: #16213e; padding: 20px; border-radius: 15px; width: 100%; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        #historico { height: 350px; overflow-y: auto; background: #0f3460; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #4ecca3; }
+        .msg { margin-bottom: 15px; padding: 10px; border-radius: 8px; line-height: 1.4; }
+        .user { background: #4ecca3; color: #1a1a2e; text-align: right; margin-left: 20%; }
+        .bot { background: #e94560; color: white; margin-right: 20%; }
+        .chat-img { width: 100%; max-width: 200px; border-radius: 8px; margin-top: 5px; }
+        input[type="text"] { width: calc(100% - 140px); padding: 10px; border-radius: 5px; border: none; }
+        button { padding: 10px; background: #4ecca3; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        #preview-area { display: none; padding: 10px; background: #0f3460; border-radius: 5px; margin-bottom: 5px; align-items: center; gap: 10px; }
+        .preview-img { height: 50px; border-radius: 5px; border: 1px solid #4ecca3; }
     </style>
 </head>
 <body>
 
-    <div class="painel">
-        <h2>Voo VIP-001</h2>
-        <p id="painelCombustivel">Status: Aguardando...</p>
+    <div class="game-card">
+        <h2>📷 Guardião da Visão</h2>
+        <input type="text" id="nickname" placeholder="Seu Nickname..." style="width: 100%; margin-bottom: 10px;">
         
-        <button id="btnGastar">Gastar Combustível (Voar)</button>
-        <button id="btnAbastecerSeguro">Abastecer 10%</button>
+        <div id="historico"></div>
+
+        <div id="preview-area">
+            <img id="img-preview" class="preview-img">
+            <span style="font-size: 12px;">Imagem selecionada</span>
+            <button onclick="limparImagem()" style="background: #ff4d4d; padding: 2px 8px;">X</button>
+        </div>
+        
+        <div style="display: flex; gap: 5px; align-items: center;">
+            <label for="imagemUpload" style="cursor:pointer; background: #0f3460; padding: 10px; border-radius: 5px;">🖼️</label>
+            <input type="file" id="imagemUpload" accept="image/*" style="display: none;" onchange="mostrarPreview()">
+            
+            <input type="text" id="pergunta" placeholder="Pergunte algo...">
+            <button onclick="enviar()">Enviar</button>
+        </div>
     </div>
 
     <script>
-        // --- CLASSE COM ENCAPSULAMENTO ---
-        class VooSeguro {
-            #codigo;
-            #combustivel;
+        const API_URL = "http://localhost:3000"; // Mude para a URL do Render em produção
 
-            constructor(codigoPassado) {
-                this.#codigo = codigoPassado;
-                this.#combustivel = 100;
-            }
-
-            // GETTER: Lê o valor de forma segura
-            get statusCombustivel() {
-                return `O tanque do voo ${this.#codigo} está em ${this.#combustivel}%`;
-            }
-
-            // SETTER: Altera o valor com regras de segurança
-            set abastecer(quantidade) {
-                if (quantidade < 0) {
-                    console.error("Tentativa hacker: Quantidade negativa!");
-                    alert("Erro: Não é possível roubar combustível!");
-                } else if (this.#combustivel + quantidade > 100) {
-                    console.warn("Limite atingido!");
-                    this.#combustivel = 100; // Trava no máximo
-                } else {
-                    this.#combustivel += quantidade;
+        function mostrarPreview() {
+            const file = document.getElementById("imagemUpload").files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    document.getElementById("img-preview").src = e.target.result;
+                    document.getElementById("preview-area").style.display = "flex";
                 }
-            }
-
-            // MÉTODO PARA GASTAR: (Desafio da Fase 3)
-            gastar(quantidade) {
-                if (this.#combustivel - quantidade < 0) {
-                    this.#combustivel = 0;
-                    alert("Atenção: Combustível esgotado!");
-                } else {
-                    this.#combustivel -= quantidade;
-                }
+                reader.readAsDataURL(file);
             }
         }
 
-        // --- LÓGICA DE INTERAÇÃO (DOM) ---
-
-        // 1. Instanciando o voo
-        const meuVoo = new VooSeguro("VIP-001");
-        
-        // 2. Capturando elementos da tela
-        const display = document.getElementById("painelCombustivel");
-        const btnGastar = document.getElementById("btnGastar");
-        const btnAbastecer = document.getElementById("btnAbastecerSeguro");
-
-        // Função para atualizar a tela
-        function atualizarPainel() {
-            display.innerText = meuVoo.statusCombustivel;
+        function limparImagem() {
+            document.getElementById("imagemUpload").value = "";
+            document.getElementById("preview-area").style.display = "none";
         }
 
-        // Inicializar tela
-        atualizarPainel();
+        async function enviar() {
+            const nick = document.getElementById("nickname").value;
+            const perg = document.getElementById("pergunta").value;
+            const fileInput = document.getElementById("imagemUpload");
+            const hist = document.getElementById("historico");
 
-        // 3. Eventos dos Botões
-        btnGastar.addEventListener("click", () => {
-            meuVoo.gastar(15); // Gastando 15%
-            atualizarPainel();
-        });
+            if (!nick || !perg) return alert("Nickname e Pergunta são obrigatórios!");
 
-        btnAbastecer.addEventListener("click", () => {
-            meuVoo.abastecer = 10; // Usando o SETTER
-            atualizarPainel();
-        });
+            // Interface do Usuário
+            let userMsg = `<div class="msg user"><b>Você:</b><br>${perg}`;
+            if (fileInput.files[0]) {
+                userMsg += `<br><img src="${document.getElementById("img-preview").src}" class="chat-img">`;
+            }
+            userMsg += `</div>`;
+            hist.innerHTML += userMsg;
 
-        // TESTE HACKER NO CONSOLE:
-        // Se você digitar: meuVoo.#combustivel = 0 no console do F12, 
-        // o navegador vai dar um erro de sintaxe e não vai deixar mudar!
+            // Preparar Dados (FormData para arquivos)
+            const formData = new FormData();
+            formData.append("nickname", nick);
+            formData.append("pergunta", perg);
+            
+            let rota = `${API_URL}/api/chat`;
+            if (fileInput.files[0]) {
+                formData.append("imagem", fileInput.files[0]);
+                rota = `${API_URL}/api/chat/vision`;
+            }
+
+            document.getElementById("pergunta").value = "";
+            limparImagem();
+            hist.scrollTop = hist.scrollHeight;
+
+            try {
+                const res = await fetch(rota, {
+                    method: 'POST',
+                    body: rota.includes('vision') ? formData : JSON.stringify({ nickname: nick, pergunta: perg }),
+                    headers: rota.includes('vision') ? {} : { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await res.json();
+                
+                if(data.resposta.toLowerCase().includes("parabéns")) {
+                    confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+                }
+
+                hist.innerHTML += `<div class="msg bot"><b>Mestre:</b> ${data.resposta}</div>`;
+            } catch (e) {
+                hist.innerHTML += `<div class="msg bot" style="color: #ff4d4d;">Mestre ficou cego! Verifique a conexão.</div>`;
+            }
+            hist.scrollTop = hist.scrollHeight;
+        }
     </script>
 </body>
 </html>
