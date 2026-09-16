@@ -31,7 +31,37 @@ const Jogador = mongoose.model('Jogador', new mongoose.Schema({
 // --- 4. CONFIGURAÇÃO GEMINI ---
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// --- 5. ROTA DE VISÃO (DIRETO PARA O GEMINI) ---
+// --- 5. ROTA DE HEALTH CHECK (PÚBLICA, sem autenticação) ---
+app.get('/api/health', async (req, res) => {
+    try {
+        // 0 = desconectado, 1 = conectado, 2 = conectando, 3 = desconectando
+        const dbStatus = mongoose.connection.readyState;
+        const dbConectado = dbStatus === 1;
+
+        if (dbConectado) {
+            return res.status(200).json({
+                status: "ok",
+                bancoDeDados: "conectado",
+                timestamp: new Date().toISOString()
+            });
+        } else {
+            return res.status(503).json({
+                status: "error",
+                bancoDeDados: "desconectado",
+                timestamp: new Date().toISOString()
+            });
+        }
+    } catch (error) {
+        return res.status(500).json({
+            status: "error",
+            bancoDeDados: "erro na verificação",
+            erro: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// --- 6. ROTA DE VISÃO (DIRETO PARA O GEMINI) ---
 app.post('/api/chat/vision', upload.single('imagem'), async (req, res) => {
     console.log("📸 Recebendo imagem para análise...");
     try {

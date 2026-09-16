@@ -16,12 +16,24 @@
         button { padding: 10px; background: #4ecca3; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
         #preview-area { display: none; padding: 10px; background: #0f3460; border-radius: 5px; margin-bottom: 5px; align-items: center; gap: 10px; }
         .preview-img { height: 50px; border-radius: 5px; border: 1px solid #4ecca3; }
+
+        /* Indicador de Status (Health Check) */
+        .header-card { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+        #statusIndicator { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+        #statusLight { width: 10px; height: 10px; border-radius: 50%; background-color: gray; transition: background-color 0.3s ease; }
     </style>
 </head>
 <body>
 
     <div class="game-card">
-        <h2>📷 Guardião da Visão</h2>
+        <div class="header-card">
+            <h2>📷 Guardião da Visão</h2>
+            <div id="statusIndicator">
+                <div id="statusLight"></div>
+                <span id="statusText">Verificando...</span>
+            </div>
+        </div>
+
         <input type="text" id="nickname" placeholder="Seu Nickname..." style="width: 100%; margin-bottom: 10px;">
         
         <div id="historico"></div>
@@ -43,6 +55,33 @@
 
     <script>
         const API_URL = "http://localhost:3000"; // Mude para a URL do Render em produção
+
+        // ===== HEALTH CHECK =====
+        async function verificarStatusAPI() {
+            const light = document.getElementById('statusLight');
+            const text = document.getElementById('statusText');
+
+            try {
+                const response = await fetch(`${API_URL}/api/health`);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    light.style.backgroundColor = '#22c55e'; // verde
+                    text.textContent = 'Sistema Operacional';
+                    console.log('Health check:', data);
+                } else {
+                    throw new Error('Resposta não OK');
+                }
+            } catch (error) {
+                light.style.backgroundColor = '#ef4444'; // vermelho
+                text.textContent = 'API Offline';
+                console.error('Erro no health check:', error);
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', verificarStatusAPI);
+        setInterval(verificarStatusAPI, 30000); // verifica de novo a cada 30s
+        // ===== FIM HEALTH CHECK =====
 
         function mostrarPreview() {
             const file = document.getElementById("imagemUpload").files[0];
@@ -69,7 +108,6 @@
 
             if (!nick || !perg) return alert("Nickname e Pergunta são obrigatórios!");
 
-            // Interface do Usuário
             let userMsg = `<div class="msg user"><b>Você:</b><br>${perg}`;
             if (fileInput.files[0]) {
                 userMsg += `<br><img src="${document.getElementById("img-preview").src}" class="chat-img">`;
@@ -77,7 +115,6 @@
             userMsg += `</div>`;
             hist.innerHTML += userMsg;
 
-            // Preparar Dados (FormData para arquivos)
             const formData = new FormData();
             formData.append("nickname", nick);
             formData.append("pergunta", perg);
