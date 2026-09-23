@@ -10,11 +10,10 @@ app.use(express.json());
 app.use(cors());
 
 // --- 1. CONFIGURAÇÃO MULTER (Memória RAM) ---
-// Recebe a imagem e guarda temporariamente na memória do servidor
 const storage = multer.memoryStorage();
 const upload = multer({ 
     storage: storage,
-    limits: { fileSize: 10 * 1024 * 1024 } // Limite de 10MB
+    limits: { fileSize: 10 * 1024 * 1024 }
 });
 
 // --- 2. CONEXÃO MONGODB ---
@@ -31,10 +30,17 @@ const Jogador = mongoose.model('Jogador', new mongoose.Schema({
 // --- 4. CONFIGURAÇÃO GEMINI ---
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// --- 5. ROTA DE HEALTH CHECK (PÚBLICA, sem autenticação) ---
+// --- 5. ROTAS DE AUTENTICAÇÃO E DOCUMENTO (importadas) ---
+const authRoutes = require('./routes/authRoutes');
+const documentRoutes = require('./routes/documentRoutes');
+const verificarToken = require('./middlewares/authMiddleware');
+
+app.use('/api', authRoutes);
+app.use('/api', documentRoutes);
+
+// --- 6. ROTA DE HEALTH CHECK (PÚBLICA, sem autenticação) ---
 app.get('/api/health', async (req, res) => {
     try {
-        // 0 = desconectado, 1 = conectado, 2 = conectando, 3 = desconectando
         const dbStatus = mongoose.connection.readyState;
         const dbConectado = dbStatus === 1;
 
@@ -61,7 +67,7 @@ app.get('/api/health', async (req, res) => {
     }
 });
 
-// --- 6. ROTA DE VISÃO (DIRETO PARA O GEMINI) ---
+// --- 7. ROTA DE VISÃO (DIRETO PARA O GEMINI) ---
 app.post('/api/chat/vision', upload.single('imagem'), async (req, res) => {
     console.log("📸 Recebendo imagem para análise...");
     try {
@@ -70,7 +76,6 @@ app.post('/api/chat/vision', upload.single('imagem'), async (req, res) => {
 
         if (!arquivo) return res.status(400).json({ erro: "Envie uma imagem!" });
 
-        // Transformamos o buffer da imagem em uma string Base64 que o Gemini entende
         const imagePart = {
             inlineData: {
                 data: arquivo.buffer.toString("base64"),
@@ -88,7 +93,6 @@ app.post('/api/chat/vision', upload.single('imagem'), async (req, res) => {
 
         res.json({ 
             resposta: respostaIA,
-            // Como não usamos Cloudinary, mandamos a própria imagem de volta em base64 para o front mostrar
             imageUrl: `data:${arquivo.mimetype};base64,${arquivo.buffer.toString("base64")}`
         });
 
