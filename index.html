@@ -2,38 +2,50 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Guardião Multimodal</title>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', sans-serif; background: #1a1a2e; color: white; display: flex; flex-direction: column; align-items: center; padding: 20px; }
         .game-card { background: #16213e; padding: 20px; border-radius: 15px; width: 100%; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        #historico { height: 350px; overflow-y: auto; background: #0f3460; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #4ecca3; }
-        .msg { margin-bottom: 15px; padding: 10px; border-radius: 8px; line-height: 1.4; }
+        .historico { height: 350px; overflow-y: auto; background: #0f3460; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #4ecca3; }
+        .msg { margin-bottom: 12px; padding: 10px; border-radius: 8px; line-height: 1.4; word-wrap: break-word; }
         .msg p { margin: 0 0 8px 0; }
         .msg ul, .msg ol { margin: 8px 0; padding-left: 20px; }
-        .user { background: #4ecca3; color: #1a1a2e; text-align: right; margin-left: 20%; }
+        .msg small { opacity: 0.7; font-size: 11px; }
+        .user { background: #4ecca3; color: #1a1a2e; margin-left: 20%; }
+        .outro { background: #2d4a7a; color: white; margin-right: 20%; }
         .bot { background: #e94560; color: white; margin-right: 20%; }
+        .sistema { text-align: center; font-size: 12px; opacity: 0.7; font-style: italic; margin-bottom: 10px; }
         .chat-img { width: 100%; max-width: 200px; border-radius: 8px; margin-top: 5px; }
-        input[type="text"], input[type="email"], input[type="password"] { width: calc(100% - 140px); padding: 10px; border-radius: 5px; border: none; }
+        input[type="text"], input[type="email"], input[type="password"] { padding: 10px; border-radius: 5px; border: none; }
+        .linha-input { display: flex; gap: 5px; align-items: center; }
+        .linha-input input[type="text"] { flex: 1; min-width: 0; }
         button { padding: 10px; background: #4ecca3; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
         #preview-area { display: none; padding: 10px; background: #0f3460; border-radius: 5px; margin-bottom: 5px; align-items: center; gap: 10px; }
         .preview-img { height: 50px; border-radius: 5px; border: 1px solid #4ecca3; }
 
-        /* Indicador de Status (Health Check) */
-        .header-card { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
-        #statusIndicator { display: flex; align-items: center; gap: 6px; font-size: 12px; }
-        #statusLight { width: 10px; height: 10px; border-radius: 50%; background-color: gray; transition: background-color 0.3s ease; }
+        .header-card { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px; }
+        .header-card h2 { margin: 0; font-size: 20px; }
+        .indicador { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+        .luz { width: 10px; height: 10px; border-radius: 50%; background-color: gray; transition: background-color 0.3s ease; }
 
-        /* Tela de Login/Cadastro */
-        #authScreen { width: 100%; max-width: 400px; background: #16213e; padding: 25px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        #authScreen { width: 100%; max-width: 400px; background: #16213e; padding: 25px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); box-sizing: border-box; }
         #authScreen h2 { text-align: center; margin-top: 0; }
         #authScreen input { width: 100%; margin-bottom: 10px; box-sizing: border-box; }
         #authScreen button { width: 100%; margin-bottom: 10px; }
         #authMsg { text-align: center; font-size: 13px; min-height: 18px; }
         .link-trocar { text-align: center; font-size: 13px; color: #4ecca3; cursor: pointer; text-decoration: underline; }
 
-        /* Modo Documento (RAG) */
+        .abas { display: flex; gap: 6px; margin-bottom: 10px; }
+        .aba { flex: 1; background: #0f3460; color: #4ecca3; border: 1px solid #4ecca3; }
+        .aba.ativa { background: #4ecca3; color: #1a1a2e; }
+        .painel { display: none; }
+        .painel.visivel { display: block; }
+
         #docToggleBtn { background: #0f3460; color: #4ecca3; border: 1px solid #4ecca3; margin-bottom: 10px; width: 100%; }
         #docToggleBtn.ativo { background: #4ecca3; color: #1a1a2e; }
         #docUploadArea { display: none; padding: 10px; background: #0f3460; border-radius: 5px; margin-bottom: 10px; }
@@ -41,11 +53,12 @@
         #docUploadArea input[type="file"] { color: white; margin-bottom: 8px; }
         #docStatus { font-size: 12px; color: #4ecca3; }
         #logoutBtn { background: #ff4d4d; font-size: 12px; padding: 5px 10px; }
+        .dica { font-size: 12px; opacity: 0.7; margin: 6px 0 0 0; }
     </style>
 </head>
 <body>
 
-    <!-- ===== TELA DE LOGIN / CADASTRO ===== -->
+    <!-- ===== LOGIN / CADASTRO ===== -->
     <div id="authScreen">
         <h2>🔐 Acesso ao Guardião</h2>
         <input type="text" id="authNome" placeholder="Nome (só no cadastro)" style="display:none;">
@@ -56,51 +69,84 @@
         <p class="link-trocar" id="linkTrocar" onclick="alternarModoAuth()">Ainda não tem conta? Cadastre-se</p>
     </div>
 
-    <!-- ===== APLICAÇÃO (só aparece depois do login) ===== -->
+    <!-- ===== APLICAÇÃO ===== -->
     <div class="game-card" id="appCard" style="display:none;">
         <div class="header-card">
-            <h2>📷 Guardião da Visão</h2>
+            <h2>📷 Guardião</h2>
             <div style="display:flex; align-items:center; gap:10px;">
-                <div id="statusIndicator">
-                    <div id="statusLight"></div>
+                <div class="indicador">
+                    <div class="luz" id="statusLight"></div>
                     <span id="statusText">Verificando...</span>
                 </div>
                 <button id="logoutBtn" onclick="fazerLogout()">Sair</button>
             </div>
         </div>
 
-        <input type="text" id="nickname" placeholder="Seu Nickname..." style="width: 100%; margin-bottom: 10px;">
-
-        <button id="docToggleBtn" onclick="alternarModoDocumento()">📄 Conversar com Documento (RAG)</button>
-
-        <div id="docUploadArea">
-            <input type="file" id="docUpload" accept=".pdf,.txt">
-            <div id="docStatus">Nenhum documento selecionado ainda.</div>
+        <div class="abas">
+            <button class="aba ativa" id="abaSala" onclick="trocarAba('sala')">💬 Sala Pública</button>
+            <button class="aba" id="abaAssistente" onclick="trocarAba('assistente')">🤖 Assistente</button>
         </div>
 
-        <div id="historico"></div>
-
-        <div id="preview-area">
-            <img id="img-preview" class="preview-img">
-            <span style="font-size: 12px;">Imagem selecionada</span>
-            <button onclick="limparImagem()" style="background: #ff4d4d; padding: 2px 8px;">X</button>
+        <!-- ===== PAINEL: SALA PÚBLICA (WebSocket) ===== -->
+        <div class="painel visivel" id="painelSala">
+            <div class="indicador" style="margin-bottom:8px;">
+                <div class="luz" id="socketLight"></div>
+                <span id="onlineTexto">Conectando à sala...</span>
+            </div>
+            <div class="historico" id="histSala"></div>
+            <div class="linha-input">
+                <input type="text" id="msgSala" placeholder="Mensagem... (use @gemini para chamar a IA)">
+                <button onclick="enviarSala()">Enviar</button>
+            </div>
+            <p class="dica">A IA só responde quando alguém escreve <b>@gemini</b> na mensagem.</p>
         </div>
-        
-        <div style="display: flex; gap: 5px; align-items: center;">
-            <label for="imagemUpload" style="cursor:pointer; background: #0f3460; padding: 10px; border-radius: 5px;">🖼️</label>
-            <input type="file" id="imagemUpload" accept="image/*" style="display: none;" onchange="mostrarPreview()">
-            
-            <input type="text" id="pergunta" placeholder="Pergunte algo...">
-            <button onclick="enviar()">Enviar</button>
+
+        <!-- ===== PAINEL: ASSISTENTE (imagem e documento) ===== -->
+        <div class="painel" id="painelAssistente">
+            <button id="docToggleBtn" onclick="alternarModoDocumento()">📄 Conversar com Documento (RAG)</button>
+
+            <div id="docUploadArea">
+                <input type="file" id="docUpload" accept=".pdf,.txt">
+                <div id="docStatus">Nenhum documento selecionado ainda.</div>
+            </div>
+
+            <div class="historico" id="histAssistente"></div>
+
+            <div id="preview-area">
+                <img id="img-preview" class="preview-img">
+                <span style="font-size: 12px;">Imagem selecionada</span>
+                <button onclick="limparImagem()" style="background: #ff4d4d; padding: 2px 8px;">X</button>
+            </div>
+
+            <div class="linha-input">
+                <label for="imagemUpload" style="cursor:pointer; background: #0f3460; padding: 10px; border-radius: 5px;">🖼️</label>
+                <input type="file" id="imagemUpload" accept="image/*" style="display: none;" onchange="mostrarPreview()">
+                <input type="text" id="pergunta" placeholder="Pergunte algo...">
+                <button onclick="enviarAssistente()">Enviar</button>
+            </div>
         </div>
     </div>
 
     <script>
-        const API_URL = "http://localhost:3000"; // Mude para a URL do Render em produção
+        const API_URL = "http://localhost:3000"; // Em produção: URL do Render
 
         let modoCadastro = false;
         let modoDocumento = false;
-        let tokenAtual = localStorage.getItem("token") || null;
+        let sessaoDocumentoId = null;
+        let socket = null;
+        let tokenAtual = localStorage.getItem("token_saas") || null;
+        let nomeAtual = localStorage.getItem("nome_saas") || "";
+
+        // ===== UTILITÁRIOS DE SEGURANÇA =====
+        // Sala pública = texto de outras pessoas. Sempre escapar antes de usar innerHTML!
+        function escapeHtml(texto) {
+            const d = document.createElement("div");
+            d.textContent = texto;
+            return d.innerHTML;
+        }
+        function renderMarkdown(texto) {
+            return DOMPurify.sanitize(marked.parse(texto || ""));
+        }
 
         // ===== AUTENTICAÇÃO =====
         function alternarModoAuth() {
@@ -120,10 +166,7 @@
             const senha = document.getElementById("authSenha").value;
             const msg = document.getElementById("authMsg");
 
-            if (!nome || !email || !senha) {
-                msg.textContent = "Preencha todos os campos.";
-                return;
-            }
+            if (!nome || !email || !senha) { msg.textContent = "Preencha todos os campos."; return; }
 
             try {
                 const res = await fetch(`${API_URL}/api/register`, {
@@ -134,9 +177,9 @@
                 const data = await res.json();
 
                 if (res.ok) {
+                    alternarModoAuth();
                     msg.style.color = "#4ecca3";
                     msg.textContent = "Cadastro feito! Agora faça login.";
-                    alternarModoAuth(); // volta pro modo login
                 } else {
                     msg.style.color = "#ff4d4d";
                     msg.textContent = data.erro || "Erro ao cadastrar.";
@@ -152,10 +195,7 @@
             const senha = document.getElementById("authSenha").value;
             const msg = document.getElementById("authMsg");
 
-            if (!email || !senha) {
-                msg.textContent = "Preencha e-mail e senha.";
-                return;
-            }
+            if (!email || !senha) { msg.textContent = "Preencha e-mail e senha."; return; }
 
             try {
                 const res = await fetch(`${API_URL}/api/login`, {
@@ -167,8 +207,9 @@
 
                 if (res.ok && data.token) {
                     tokenAtual = data.token;
-                    localStorage.setItem("token", tokenAtual);
-                    document.getElementById("nickname").value = data.nome || "";
+                    nomeAtual = data.nome || "";
+                    localStorage.setItem("token_saas", tokenAtual);
+                    localStorage.setItem("nome_saas", nomeAtual);
                     entrarNoApp();
                 } else {
                     msg.style.color = "#ff4d4d";
@@ -181,72 +222,145 @@
         }
 
         function fazerLogout() {
-            localStorage.removeItem("token");
+            if (socket) { socket.disconnect(); socket = null; }
+            localStorage.removeItem("token_saas");
+            localStorage.removeItem("nome_saas");
             tokenAtual = null;
+            nomeAtual = "";
+            sessaoDocumentoId = null;
             document.getElementById("appCard").style.display = "none";
             document.getElementById("authScreen").style.display = "block";
-            document.getElementById("historico").innerHTML = "";
+            document.getElementById("histSala").innerHTML = "";
+            document.getElementById("histAssistente").innerHTML = "";
         }
 
         function entrarNoApp() {
             document.getElementById("authScreen").style.display = "none";
             document.getElementById("appCard").style.display = "block";
             verificarStatusAPI();
+            conectarSocket();
         }
 
-        // Se já tinha token salvo de uma sessão anterior, entra direto
-        if (tokenAtual) {
-            entrarNoApp();
+        // ===== WEBSOCKET (SALA PÚBLICA) =====
+        function conectarSocket() {
+            if (socket) socket.disconnect();
+
+            // O token JWT vai junto na conexão: o servidor recusa se for inválido
+            socket = io(API_URL, { auth: { token: tokenAtual } });
+
+            socket.on("connect", () => {
+                document.getElementById("socketLight").style.backgroundColor = "#22c55e";
+                adicionarSistema("Conectado à sala pública. 👋");
+            });
+
+            socket.on("connect_error", (err) => {
+                document.getElementById("socketLight").style.backgroundColor = "#ef4444";
+                document.getElementById("onlineTexto").textContent = "Sem conexão com a sala";
+                adicionarSistema(`Falha na conexão: ${err.message}`);
+                if (/token/i.test(err.message)) {
+                    setTimeout(fazerLogout, 1500); // token inválido/expirado: volta pro login
+                }
+            });
+
+            socket.on("disconnect", () => {
+                document.getElementById("socketLight").style.backgroundColor = "#ef4444";
+            });
+
+            socket.on("mensagemRecebida", (m) => adicionarMensagemSala(m));
+
+            socket.on("usuariosOnline", (n) => {
+                document.getElementById("onlineTexto").textContent =
+                    `🟢 ${n} ${n === 1 ? "usuário online" : "usuários online"} na sala`;
+            });
+        }
+
+        function adicionarSistema(texto) {
+            const hist = document.getElementById("histSala");
+            hist.innerHTML += `<div class="sistema">${escapeHtml(texto)}</div>`;
+            hist.scrollTop = hist.scrollHeight;
+        }
+
+        function adicionarMensagemSala(m) {
+            const hist = document.getElementById("histSala");
+            const hora = new Date(m.hora).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+            const classe = m.bot ? "bot" : (m.nome === nomeAtual ? "user" : "outro");
+            const corpo = m.bot ? renderMarkdown(m.texto) : escapeHtml(m.texto);
+
+            hist.innerHTML += `<div class="msg ${classe}"><b>${escapeHtml(m.nome)}</b> <small>${hora}</small><br>${corpo}</div>`;
+            hist.scrollTop = hist.scrollHeight;
+        }
+
+        function enviarSala() {
+            const input = document.getElementById("msgSala");
+            const texto = input.value.trim();
+            if (!texto) return;
+
+            if (!socket || !socket.connected) {
+                return alert("Você não está conectado à sala. Verifique o servidor.");
+            }
+
+            socket.emit("novaMensagem", { texto });
+            input.value = "";
+        }
+
+        document.getElementById("msgSala").addEventListener("keydown", (e) => {
+            if (e.key === "Enter") enviarSala();
+        });
+        document.getElementById("pergunta").addEventListener("keydown", (e) => {
+            if (e.key === "Enter") enviarAssistente();
+        });
+
+        // ===== ABAS =====
+        function trocarAba(aba) {
+            const sala = aba === "sala";
+            document.getElementById("painelSala").classList.toggle("visivel", sala);
+            document.getElementById("painelAssistente").classList.toggle("visivel", !sala);
+            document.getElementById("abaSala").classList.toggle("ativa", sala);
+            document.getElementById("abaAssistente").classList.toggle("ativa", !sala);
         }
 
         // ===== HEALTH CHECK =====
         async function verificarStatusAPI() {
-            const light = document.getElementById('statusLight');
-            const text = document.getElementById('statusText');
-
+            const light = document.getElementById("statusLight");
+            const text = document.getElementById("statusText");
             try {
                 const response = await fetch(`${API_URL}/api/health`);
-                if (response.ok) {
-                    const data = await response.json();
-                    light.style.backgroundColor = '#22c55e';
-                    text.textContent = 'Sistema Operacional';
-                    console.log('Health check:', data);
-                } else {
-                    throw new Error('Resposta não OK');
-                }
+                if (!response.ok) throw new Error("Resposta não OK");
+                light.style.backgroundColor = "#22c55e";
+                text.textContent = "Sistema Operacional";
             } catch (error) {
-                light.style.backgroundColor = '#ef4444';
-                text.textContent = 'API Offline';
-                console.error('Erro no health check:', error);
+                light.style.backgroundColor = "#ef4444";
+                text.textContent = "API Offline";
             }
         }
-        setInterval(verificarStatusAPI, 30000);
+        setInterval(() => { if (tokenAtual) verificarStatusAPI(); }, 30000);
 
-        // ===== MODO DOCUMENTO (RAG) =====
+        // ===== ASSISTENTE: DOCUMENTO (RAG) =====
         function alternarModoDocumento() {
             modoDocumento = !modoDocumento;
             const btn = document.getElementById("docToggleBtn");
-            const area = document.getElementById("docUploadArea");
-
             btn.classList.toggle("ativo", modoDocumento);
-            area.classList.toggle("visivel", modoDocumento);
-            btn.textContent = modoDocumento
-                ? "📄 Modo Documento ATIVO (clique para sair)"
-                : "📄 Conversar com Documento (RAG)";
+            document.getElementById("docUploadArea").classList.toggle("visivel", modoDocumento);
 
-            // Se ativar o modo documento, esconde a imagem (não faz sentido usar os dois juntos)
-            if (modoDocumento) {
+            if (!modoDocumento) {
+                sessaoDocumentoId = null;
+                document.getElementById("docStatus").textContent = "Nenhum documento selecionado ainda.";
+                document.getElementById("docUpload").value = "";
+                btn.textContent = "📄 Conversar com Documento (RAG)";
+            } else {
+                btn.textContent = "📄 Modo Documento ATIVO (clique para sair)";
                 limparImagem();
             }
         }
 
         document.getElementById("docUpload").addEventListener("change", function () {
             const file = this.files[0];
-            const status = document.getElementById("docStatus");
-            status.textContent = file ? `📎 Selecionado: ${file.name}` : "Nenhum documento selecionado ainda.";
+            sessaoDocumentoId = null; // arquivo novo = sessão nova
+            document.getElementById("docStatus").textContent =
+                file ? `📎 Pronto para enviar: ${file.name}` : "Nenhum documento selecionado ainda.";
         });
 
-        // ===== IMAGEM =====
+        // ===== ASSISTENTE: IMAGEM =====
         function mostrarPreview() {
             const file = document.getElementById("imagemUpload").files[0];
             if (file) {
@@ -254,7 +368,7 @@
                 reader.onload = (e) => {
                     document.getElementById("img-preview").src = e.target.result;
                     document.getElementById("preview-area").style.display = "flex";
-                }
+                };
                 reader.readAsDataURL(file);
             }
         }
@@ -264,58 +378,58 @@
             document.getElementById("preview-area").style.display = "none";
         }
 
-        // ===== ENVIO PRINCIPAL =====
-        async function enviar() {
-            const nick = document.getElementById("nickname").value;
-            const perg = document.getElementById("pergunta").value;
+        // ===== ASSISTENTE: ENVIO =====
+        async function enviarAssistente() {
+            const nick = nomeAtual || "Jogador";
+            const perg = document.getElementById("pergunta").value.trim();
             const fileInput = document.getElementById("imagemUpload");
             const docInput = document.getElementById("docUpload");
-            const hist = document.getElementById("historico");
+            const hist = document.getElementById("histAssistente");
 
-            if (!nick || !perg) return alert("Nickname e Pergunta são obrigatórios!");
-
-            if (modoDocumento && !docInput.files[0]) {
+            if (!perg) return alert("Digite uma pergunta!");
+            if (modoDocumento && !sessaoDocumentoId && !docInput.files[0]) {
                 return alert("Selecione um documento (PDF ou TXT) primeiro!");
             }
 
-            // Exibir mensagem do usuário
-            let userMsg = `<div class="msg user"><b>Você:</b><br>${perg}`;
+            let userMsg = `<div class="msg user"><b>Você:</b><br>${escapeHtml(perg)}`;
             if (!modoDocumento && fileInput.files[0]) {
                 userMsg += `<br><img src="${document.getElementById("img-preview").src}" class="chat-img">`;
             }
-            if (modoDocumento && docInput.files[0]) {
-                userMsg += `<br><small>📎 ${docInput.files[0].name}</small>`;
+            if (modoDocumento && docInput.files[0] && !sessaoDocumentoId) {
+                userMsg += `<br><small>📎 ${escapeHtml(docInput.files[0].name)} (novo documento)</small>`;
+            } else if (modoDocumento && sessaoDocumentoId) {
+                userMsg += `<br><small>💬 continuando conversa sobre o documento</small>`;
             }
             userMsg += `</div>`;
             hist.innerHTML += userMsg;
 
-            let rota, opcoesFetch;
+            let rota, opcoes;
 
-            if (modoDocumento) {
-                // ROTA RAG — precisa de token
+            if (modoDocumento && !sessaoDocumentoId) {
                 const formData = new FormData();
                 formData.append("pergunta", perg);
                 formData.append("documento", docInput.files[0]);
-                rota = `${API_URL}/api/chat/documento`;
-                opcoesFetch = {
-                    method: 'POST',
-                    headers: { "Authorization": `Bearer ${tokenAtual}` },
-                    body: formData
+                rota = `${API_URL}/api/chat/documento/sessao`;
+                opcoes = { method: "POST", headers: { "Authorization": `Bearer ${tokenAtual}` }, body: formData };
+            } else if (modoDocumento && sessaoDocumentoId) {
+                rota = `${API_URL}/api/chat/documento/continuar`;
+                opcoes = {
+                    method: "POST",
+                    headers: { "Authorization": `Bearer ${tokenAtual}`, "Content-Type": "application/json" },
+                    body: JSON.stringify({ pergunta: perg, sessaoId: sessaoDocumentoId })
                 };
             } else if (fileInput.files[0]) {
-                // ROTA VISÃO (imagem)
                 const formData = new FormData();
                 formData.append("nickname", nick);
                 formData.append("pergunta", perg);
                 formData.append("imagem", fileInput.files[0]);
                 rota = `${API_URL}/api/chat/vision`;
-                opcoesFetch = { method: 'POST', body: formData };
+                opcoes = { method: "POST", body: formData };
             } else {
-                // ROTA CHAT TEXTO
                 rota = `${API_URL}/api/chat`;
-                opcoesFetch = {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                opcoes = {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ nickname: nick, pergunta: perg })
                 };
             }
@@ -325,10 +439,10 @@
             hist.scrollTop = hist.scrollHeight;
 
             try {
-                const res = await fetch(rota, opcoesFetch);
+                const res = await fetch(rota, opcoes);
 
                 if (res.status === 401) {
-                    hist.innerHTML += `<div class="msg bot" style="color: #ff4d4d;">⛔ Sua sessão expirou. Faça login novamente.</div>`;
+                    hist.innerHTML += `<div class="msg bot">⛔ Sua sessão expirou. Faça login novamente.</div>`;
                     setTimeout(fazerLogout, 2000);
                     return;
                 }
@@ -336,24 +450,30 @@
                 const data = await res.json();
 
                 if (!res.ok) {
-                    hist.innerHTML += `<div class="msg bot" style="color: #ff4d4d;">Erro: ${data.erro || "algo deu errado."}</div>`;
+                    hist.innerHTML += `<div class="msg bot">Erro: ${escapeHtml(data.erro || "algo deu errado.")}</div>`;
                     hist.scrollTop = hist.scrollHeight;
                     return;
+                }
+
+                if (data.sessaoId) {
+                    sessaoDocumentoId = data.sessaoId;
+                    document.getElementById("docStatus").textContent =
+                        "✅ Documento carregado! Pode perguntar à vontade sem reenviar o arquivo.";
                 }
 
                 if (data.resposta && data.resposta.toLowerCase().includes("parabéns")) {
                     confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
                 }
 
-                // Renderiza a resposta em Markdown (negrito, listas, etc.)
-                const respostaHtml = marked.parse(data.resposta || "");
-                hist.innerHTML += `<div class="msg bot"><b>Mestre:</b> ${respostaHtml}</div>`;
-
+                hist.innerHTML += `<div class="msg bot"><b>Mestre:</b> ${renderMarkdown(data.resposta)}</div>`;
             } catch (e) {
-                hist.innerHTML += `<div class="msg bot" style="color: #ff4d4d;">Mestre ficou cego! Verifique a conexão.</div>`;
+                hist.innerHTML += `<div class="msg bot">Mestre ficou cego! Verifique a conexão.</div>`;
             }
             hist.scrollTop = hist.scrollHeight;
         }
+
+        // Se já havia token salvo de uma sessão anterior, entra direto
+        if (tokenAtual) entrarNoApp();
     </script>
 </body>
 </html>
